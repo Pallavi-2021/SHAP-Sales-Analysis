@@ -11,11 +11,35 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import io, warnings, textwrap
+import warnings
 warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title=" Lacto - SHAP Sales Intelligence", page_icon="S",
+# ── Startup dependency check ────────────────────────────────────────────────
+_missing = []
+try:
+    import xgboost
+except ImportError:
+    _missing.append("xgboost")
+try:
+    import shap
+except ImportError:
+    _missing.append("shap")
+try:
+    import openpyxl
+except ImportError:
+    _missing.append("openpyxl")
+
+st.set_page_config(page_title="SHAP Sales Intelligence", page_icon="S",
                    layout="wide", initial_sidebar_state="expanded")
+
+# ── Show dependency warning if anything is missing ─────────────────────────
+if _missing:
+    st.error(
+        f"Missing required libraries: **{', '.join(_missing)}**. "
+        "Please ensure your requirements.txt includes: streamlit, pandas, numpy, "
+        "matplotlib, xgboost, shap, scikit-learn, openpyxl"
+    )
+    st.stop()
 
 # ─── CSS ───────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -367,7 +391,7 @@ if cur==0:
             st.session_state.raw_df=dfr
             st.success(f"Loaded {dfr.shape[0]:,} rows x {dfr.shape[1]} columns.")
             with st.expander("Preview — first 10 rows"):
-                st.dataframe(dfr.head(10),use_container_width=True)
+                st.dataframe(dfr.head(10),width='stretch')
             miss=[c for c in["Sale Value","Depot","Order Type","Delivery Status","Product","Outlets Name"]
                   if c not in dfr.columns]
             if miss:
@@ -577,7 +601,7 @@ else:
         ns=df_p.select_dtypes(include="number").describe().T[["count","mean","std","min","50%","max"]]
         ns.columns=["Count","Mean","Std Dev","Min","Median","Max"]
         for c_ in["Mean","Std Dev","Min","Median","Max"]:ns[c_]=ns[c_].apply(lambda x:f"{x:,.2f}")
-        st.dataframe(ns,use_container_width=True)
+        st.dataframe(ns,width='stretch')
         # AI insight
         completeness=100-mp.mean()
         ai_msg=(f"Data completeness is {completeness:.1f}% overall. "
@@ -707,7 +731,7 @@ else:
             tbl=sdf[["Rank","Friendly","Mean_SHAP"]].head(20).copy()
             tbl.columns=["Rank","Business Name","Mean |SHAP| (Rs)"]
             tbl["Mean |SHAP| (Rs)"]=tbl["Mean |SHAP| (Rs)"].round(4)
-            st.dataframe(tbl.reset_index(drop=True),use_container_width=True,height=530)
+            st.dataframe(tbl.reset_index(drop=True),width='stretch',height=530)
 
         # SHAP narrative
         st.markdown('<div class="sh2">Plain-English SHAP Interpretations</div>',unsafe_allow_html=True)
@@ -1138,7 +1162,7 @@ else:
                               else f"{(v/med_rev_ord-1)*100:.0f}%")
                              for v in avg_rev_ord.reindex(er.index).fillna(0)]
             }).reset_index(drop=True)
-            st.dataframe(etbl,use_container_width=True)
+            st.dataframe(etbl,width='stretch')
             top3=er.head(3).index.tolist();bot3=er.tail(3).index.tolist()
             st.markdown(ai_banner(
                 f"Top 3 executives ({', '.join(top3)}) are generating the highest revenue. "
@@ -1194,7 +1218,7 @@ else:
                 "Avg Rev / Order (Rs)":dsa.reindex(dsr.index).apply(fmt_inr).values,
                 "Revenue Share (%)": (dsr/dsr.sum()*100).round(1).astype(str).add("%").values
             }).sort_values("Order Count",ascending=False)
-            st.dataframe(dst.reset_index(drop=True),use_container_width=True)
+            st.dataframe(dst.reset_index(drop=True),width='stretch')
         if DR in filt.columns:
             st.markdown('<div class="sh2">Dispatch Rate Distribution — All Orders (%)</div>',unsafe_allow_html=True)
             st.markdown('<p class="tip">Dispatch Rate = Dispatched Quantity / Ordered Quantity. Industry best practice target: 95%+</p>',unsafe_allow_html=True)
@@ -1280,7 +1304,7 @@ else:
                 "vs Median":[(f"+{(v/dr_s.median()-1)*100:.0f}%" if v>=dr_s.median()
                               else f"{(v/dr_s.median()-1)*100:.0f}%") for v in dr_s.values]
             })
-            st.dataframe(dep_tbl.reset_index(drop=True),use_container_width=True)
+            st.dataframe(dep_tbl.reset_index(drop=True),width='stretch')
             if "Beats" in filt.columns and SV in filt.columns:
                 st.markdown('<div class="sh2">Top 10 Revenue-Generating Beats / Routes (Rs)</div>',unsafe_allow_html=True)
                 br=gb_sum(filt,"Beats",SV).sort_values(ascending=False).head(10);fig,ax=sfig(12,4)
@@ -1435,7 +1459,7 @@ else:
                 if c_ in sk.columns:sk[c_]=sk[c_].apply(fmt_inr)
             if "Avg Dispatch Rate (%)" in sk.columns:
                 sk["Avg Dispatch Rate (%)"]=sk["Avg Dispatch Rate (%)"].apply(lambda x:f"{x:.1%}")
-            st.dataframe(sk,use_container_width=True)
+            st.dataframe(sk,width='stretch')
         # Comparative bar
         if "Outlets Segmentation" in filt.columns and SV in filt.columns:
             seg_rev=gb_sum(filt,"Outlets Segmentation",SV).sort_values(ascending=False)
@@ -1575,4 +1599,6 @@ with nr:
         locked=cur+1>=2 and not st.session_state.processed
         if st.button("Next [locked]" if locked else "Next",key="next_btn",disabled=locked):
             go(1);st.rerun()
+
+
 
